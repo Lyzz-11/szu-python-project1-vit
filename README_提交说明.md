@@ -1,4 +1,6 @@
-# 提交说明：小项目一 —— 用 NumPy 复现 OpenCLIP ViT-B/32 图像编码器
+﻿# 提交说明：小项目一 —— 用 NumPy 复现 OpenCLIP ViT-B/32 图像编码器
+
+**代码仓库：<https://github.com/Lyzz-11/szu-python-project1-vit>（公开）**
 
 本目录提交了小项目一的全部内容：代码、实验报告、仓库说明。代码部分只改动了 `project1-numpy-student/image_encoder.py`，课程提供的 `helpers.py`、`preprocess_image.py`、`runtime.py`、`check.py`、`run.py` 与测试数据均保持原样。
 
@@ -96,4 +98,4 @@ python run.py --images path/to/a.jpg path/to/b.png --output my_tokens.npz
 2. `feat: 实现 ViT-B/32 视觉塔六个 TODO，check.py 全阶段通过`
 3. `docs: 补充提交说明、实验报告（PDF）与仓库 README`
 
-推送到 GitHub 后请在仓库 Settings → Collaborators 中把助教与老师加入，保证可访问。
+仓库已推送至 <https://github.com/Lyzz-11/szu-python-project1-vit>（Public，可直接访问）。若需改为 Private，请在仓库 Settings → Collaborators 中把助教与老师加入。
