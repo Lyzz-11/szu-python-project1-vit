@@ -1,22 +1,22 @@
 ﻿% ============================================================
 %  深圳大学实验报告（SZU Experiment Report Template）
-%  编译方式：XeLaTeX（模板使用 fontspec + xeCJK，pdfLaTeX 无法编译）
+%  编译方式：XeLaTeX（fontspec + xeCJK）
 % ============================================================
 
 \documentclass[a4paper,12pt]{article}
 
 % ----------------------------
-% 中文与字体支持
+% 字体：中文 Noto，西文 Times 系
 % ----------------------------
-\usepackage{fontspec}    % 字体支持
-\usepackage{xeCJK}       % 中文字体支持
+\usepackage{fontspec}
+\usepackage{xeCJK}
 \IfFontExistsTF{Noto Serif CJK SC}
   {\setCJKmainfont{Noto Serif CJK SC}}
   {\setCJKmainfont{SimSun}}
+\IfFontExistsTF{Times New Roman}
+  {\setmainfont{Times New Roman}}
+  {\setmainfont{TeX Gyre Termes}}
 
-% ----------------------------
-% 页面设置与常用宏包
-% ----------------------------
 \usepackage{geometry}
 \geometry{left=1in, right=1in, top=1in, bottom=1in}
 
@@ -36,21 +36,23 @@
 
 \setlength{\parskip}{2pt}
 \setlength{\emergencystretch}{3em}
+\renewcommand{\figurename}{图}
+\renewcommand{\tablename}{表}
 
 \begin{document}
 
 % ============================================================
-% 封面页
+% 封面
 % ============================================================
 \begin{titlepage}
     \centering
-    \vspace*{2cm}
-    \Huge{\textbf{深 \ 圳 \ 大 \ 学 \ 实 \ 验  \ 报 \ 告}}\\[1.5cm]
+    \vspace*{1.6cm}
+    \Huge{\textbf{深圳大学实验报告}}\\[1.4cm]
 
     {\Large\textbf{课程名称}\quad\underline{\makebox[8cm][c]{Python程序设计}}}\\[0.5cm]
 {\Large
 \noindent\makebox[3.2cm][l]{\textbf{项目名称}}
-\underline{\makebox[8cm][c]{NumPy 复现 ViT-B/32 图像编码器}}}\\[0.5cm]
+\underline{\makebox[8cm][c]{小项目 1 NumPy 图像编码器}}}\\[0.5cm]
 {\Large
 \noindent\makebox[3.2cm][l]{\textbf{学 \quad \quad 院}}
 \underline{\makebox[8cm][c]{人工智能学院}}}\\[0.5cm]
@@ -68,10 +70,10 @@
 \underline{\makebox[3cm][c]{2025681110}}}\\[0.5cm]
 {\Large
 \noindent\makebox[3.2cm][l]{\textbf{实验时间}}
-\underline{\makebox[8cm][c]{2026 年 11 月 25 日}}}\\[0.5cm]
+\underline{\makebox[8cm][c]{2026 年 11 月 24 日至 25 日}}}\\[0.5cm]
 {\Large
 \noindent\makebox[3.2cm][l]{\textbf{提交时间}}
-\underline{\makebox[8cm][c]{2026 年 11 月 26 日}}}\\[1.5cm]
+\underline{\makebox[8cm][c]{2026 年 11 月 26 日}}}\\[1.2cm]
 
     \vfill
     \Large{\textbf{教务处制}}
@@ -83,88 +85,163 @@
 % 正文
 % ============================================================
 
-\section*{一、任务与方法}
+\section{Objectives}
 
-\textbf{任务：}不依赖 PyTorch 与 OpenCLIP，也不训练任何参数，仅用 NumPy 补全 \texttt{image\_encoder.py}，复现 OpenCLIP ViT-B/32 视觉编码器的一次完整前向：输入预处理后的 $[B,3,224,224]$ 图像，输出每张图一个 512 维单位向量，并与课程提供的独立 FP32 参考在给定容差内一致（输出 $\mathrm{atol}=2\times10^{-5}$、$\mathrm{rtol}=2\times10^{-4}$；中间 token $\mathrm{atol}=2\times10^{-4}$）。任务拆成六个 TODO：patchify、split\_heads、缩放点积注意力与输出投影、Transformer 块（双残差与 GELU MLP）、输入嵌入（patch 投影 / CLS / 位置编码）、输出头（CLS / post-Norm / 投影 / 单位化）。
+本实验用 NumPy 手工复现 OpenCLIP ViT-B/32 的图像塔，不加载 PyTorch 或 OpenCLIP 包，也不更新任何参数。输入是课程预处理后的 $[B,3,224,224]$ 浮点数组（最短边缩放到 224、中心裁剪、按 OpenCLIP 的均值与方差逐通道归一化），输出是每张图一个 512 维单位向量，需要与课程提供的独立 FP32 参考在 $\mathrm{atol}=2\times10^{-5}$、$\mathrm{rtol}=2\times10^{-4}$ 内一致，中间 token 的容差为 $2\times10^{-4}$。
 
-\textbf{模型固定：}宽度 $D=768$、头数 $H=12$、每头 $D/H=64$、12 层、MLP 中间宽度 3072、token 数 50（1 个 CLS 加 49 个 patch）、输出 512 维；权重共 152 个 float32 张量。
+实现只允许使用 reshape、transpose、矩阵乘与广播；课程提供的 LayerNorm、精确 GELU、注意力系数与单位化函数保持原样，\texttt{check.py}、\texttt{run.py} 与预处理脚本也不得改动。除数值一致外，还要说明三个问题：张量形状如何逐级变化、多头注意力的四个轴如何组织、以及调试时如何定位最早出现偏差的阶段。代码托管于 \url{https://github.com/Lyzz-11/szu-python-project1-vit}，README 记录了环境、依赖与运行步骤。
 
-\textbf{方法路线：}图像切成 $7\times7$ 个 $32\times32$ 图块（块内按 $C,H,W$ 展平）$\rightarrow$ 线性投影（无 bias）$\rightarrow$ 拼接 CLS 并加位置编码 $\rightarrow$ pre-Norm $\rightarrow$ 12 个 Transformer 块 $\rightarrow$ 取 CLS 行 $\rightarrow$ post-Norm $\rightarrow$ $768\rightarrow512$ 投影 $\rightarrow$ 单位化。块内采用 pre-LN 残差结构：
-\[
-S=\frac{QK^{\top}}{\sqrt{64}},\quad A=\mathrm{softmax}(S),\quad O=(AV)W_o^{\top}+b_o,
-\]
-\[
-\mathrm{MLP}(u)=\mathrm{GELU}\!\left(uW_1^{\top}+b_1\right)W_2^{\top}+b_2.
-\]
+\section{Overview}
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.62\linewidth]{figs/vit_overview.png}
-    \caption{编码器结构与本次实现范围（课程提供）}
-    \label{fig:vit}
-\end{figure}
+实验在课程附件给出的 10 张测试图、152 个视觉张量（约 326 MB）与逐阶段参考数组上完成。模型规模固定为：宽度 $D=768$、头数 $H=12$、每头 $D/H=64$、12 层、MLP 中间宽度 3072、token 数 50（1 个 CLS 加 49 个图块）、输出 512 维，全程 float32。参数约定有三条必须遵守：线性层权重按 $[\mathrm{out},\mathrm{in}]$ 存放，使用时需转置；\texttt{visual.proj} 已经是 $[\mathrm{in},\mathrm{out}]$，不能转置；patch 投影没有偏置，图像块也没有 LayerScale。
 
-\section*{二、可复现性}
-
-\textbf{环境：}Windows 11；Python 3.12.14；NumPy 2.3.5；Pillow 12.3.0；纯 CPU 环境，不依赖 GPU、联网与 OpenCLIP 包。依赖清单见 \texttt{requirements.txt}。
-
-\textbf{数据与权重：}课程提供 10 张测试图（\texttt{assets/images/}）与参考输出（\texttt{assets/reference\_outputs.npz}）；权重 \texttt{weights/image\_encoder.npz} 共 152 个视觉张量、约 326 MB，体积大，不纳入代码仓库，按课程附件获取。
-
-\textbf{运行步骤：}在 \texttt{project1-numpy-student} 目录下执行（脚本按自身位置解析路径，与当前工作目录无关）：
-\begin{verbatim}
-python -m pip install -r requirements.txt
-python check.py --stage all       # patches/tokens/block0/last_tokens/output/batch
-python run.py --output output_tokens.npz
-\end{verbatim}
-
-\textbf{参数约定：}patch 32、Norm eps $10^{-5}$、全程 float32；线性层权重按 $[\mathrm{out},\mathrm{in}]$ 存储（用 $W^{\top}$）、输出投影 \texttt{visual.proj} 已是 $[\mathrm{in},\mathrm{out}]$（不转置）；图像块无 LayerScale、patch 投影无 bias。\texttt{check.py --stage all} 在 CPU 上约 11--16 s 完成。
-
-\section*{三、结果与证据}
-
-六个 TODO 完成后执行 \texttt{python check.py --stage all}，8 个阶段全部通过，实测误差见表~\ref{tab:err}。
+整体流程是：图像切成 $7\times7$ 个 $32\times32$ 图块并展平，经无偏置线性投影后与 CLS、可学习位置编码拼成 50 个 token；随后通过 12 个 pre-LN 块（多头注意力、两项残差、GELU MLP），取 CLS 行做 post-Norm，投影到 512 维并单位化。表~\ref{tab:flow} 记录了各步的形状。
 
 \begin{table}[H]
 \centering
-\caption{逐阶段数值验收（rtol 均为 $2\times10^{-4}$；PASS 表示形状、dtype、有限性与容差同时满足）}
-\label{tab:err}
-\footnotesize
-\setlength{\tabcolsep}{3.5pt}
-\begin{tabular}{|l|l|l|l|l|l|}
+\caption{从输入图像到输出向量的形状变化（$B$ 为批大小）}
+\label{tab:flow}
+\small
+\begin{tabular}{|l|l|l|}
 \hline
-阶段 & 输出形状 & 最大绝对误差 & 平均绝对误差 & 容差 & 结果 \\
+步骤 & 主要操作 & 形状 \\
 \hline
-assets       & 152 张量        & ---          & ---          & 名称/形状/哈希 & PASS \\
-preprocess   & (10,3,224,224)  & 0            & 0            & atol $2\times10^{-6}$ & PASS \\
-patches      & (2,49,3072)     & 0            & 0            & atol $2\times10^{-4}$ & PASS \\
-tokens       & (2,50,768)      & $4.387\times10^{-5}$ & $1.335\times10^{-6}$ & atol $2\times10^{-4}$ & PASS \\
-block0       & (2,50,768)      & $7.147\times10^{-6}$ & $3.348\times10^{-7}$ & atol $2\times10^{-4}$ & PASS \\
-last\_tokens & (2,50,768)      & $4.196\times10^{-5}$ & $2.633\times10^{-6}$ & atol $2\times10^{-4}$ & PASS \\
-output       & (10,512)        & $5.662\times10^{-7}$ & $8.688\times10^{-8}$ & atol $2\times10^{-5}$ & PASS \\
-batch        & (3,512)         & $4.061\times10^{-7}$ & $7.848\times10^{-8}$ & atol $2\times10^{-5}$ & PASS \\
+输入 & 预处理后的 RGB 张量 & $[B,3,224,224]$ \\
+切块 & reshape、transpose 后展平 & $[B,49,3072]$ \\
+嵌入 & 线性投影、拼 CLS、加位置编码 & $[B,50,768]$ \\
+12 层编码 & 注意力与 MLP，宽度 768 / 3072 & $[B,50,768]$ \\
+输出头 & 取 CLS、post-Norm、$768\rightarrow512$、单位化 & $[B,512]$ \\
 \hline
 \end{tabular}
 \end{table}
 
-表~\ref{tab:err} 有两点值得注意：一是 \texttt{preprocess} 与 \texttt{patches} 的误差恰为 0，说明预处理与图块顺序同参考逐位一致，图块约定（先左后右、先上后下、块内 $C,H,W$）无歧义；二是误差随层数累积但始终在容差内，\texttt{tokens} 的 $4.4\times10^{-5}$ 来自浮点累加顺序差异，经 12 层后 \texttt{output} 反而降到 $5.7\times10^{-7}$，因为输出端做了 post-Norm 与单位化，幅值归一后相对误差被压缩。
+\section{Implementations}
 
-\textbf{其他证据：}① \texttt{run.py} 成功写出 $(10,512)$ 的 float32 结果，图像 ID 顺序与 \texttt{assets/images.json} 一致；② 10 个输出向量的 $\ell_2$ 范数落在 $[0.99999988,1.0]$，满足单位长度；③ \texttt{batch} 阶段用顺序 $[1,0,1]$（含乱序与重复图像）重新前向，误差 $4.1\times10^{-7}$，说明实现不依赖批内位置、也未把整批当作全局统计量；④ 10 张图两两余弦相似度最低 0.4624、平均 0.5721、最高 0.6739，属本次输入集合的描述性统计，不参与验收。
+\textbf{切块与嵌入。}\texttt{patchify} 先把空间轴拆成两段，得到 $[B,3,7,32,7,32]$，再用 \texttt{transpose} 把轴排成（批、图块行、图块列、通道、块内行、块内列），最后合并成 $[B,49,3072]$：
 
-\section*{四、分析与反思}
+\begin{verbatim}
+split   = images.reshape(B, 3, 7, 32, 7, 32)
+ordered = split.transpose(0, 2, 4, 1, 3, 5)
+patches = ordered.reshape(B, 49, 3072)
+\end{verbatim}
 
-\textbf{1. 一处形状变化：patchify 为什么必须变成 6 维。}直接 \texttt{reshape(B,49,3072)} 形状正确但元素顺序错误：NumPy 按行优先展平，每段会跨越通道与整行像素。正确做法是先把空间轴拆成两段 $[B,3,224,224]\rightarrow[B,3,7,32,7,32]$，再 \texttt{transpose(0,2,4,1,3,5)} 成 $[B,7,7,3,32,32]$（批、图块行、图块列、通道、块内行、块内列），最后 \texttt{reshape} 合并为 $[B,49,3072]$。前两步只改变“怎么看待”数据，第三步才真正合并内存布局，因此顺序由 transpose 决定而非 reshape——这也是 patches 阶段误差为 0 的原因。
+投影使用 $W_{\mathrm{patch}}^{\top}$，不加偏置；CLS 按批复制后拼在 token 轴最前，再加上同一个位置编码。
 
-\textbf{2. 一个修好的 bug：4 维张量上的 \texttt{.T}。}注意力最初写成 \texttt{scores = q @ k.T}。对 2 维矩阵 \texttt{.T} 就是转置，但对 4 维的 $K\in\mathbb{R}^{B\times H\times N\times 64}$，\texttt{.T} 反转全部四个轴得到 $[64,N,H,B]$，把 batch 与 head 一并打乱，\texttt{check.py --stage block0} 直接报错 \texttt{matmul: Input operand 1 has a mismatch in its core dimension 0 ... (size 12 is different from 64)}，其中 12 与 64 正是 $H$ 与 $D/H$。改为只交换最后两轴的 \texttt{k.transpose(0,1,3,2)} 后 block0 误差 $7.1\times10^{-6}$，问题消失。由此得到一条更一般的经验：阶段检查的覆盖范围必须与它实际覆盖的计算对齐——先跑的 \texttt{--stage tokens} 只验证 embed、不经过注意力，所以带 bug 的版本在 tokens 阶段依然 PASS，要验证注意力必须跑到 block0 或更后。
+\textbf{多头注意力。}线性层权重按 $[\mathrm{out},\mathrm{in}]$ 存放，因此 $qkv=xW^{\top}+b$；特征轴 reshape 成 $(H,D/H)=(12,64)$ 后，把头轴提到 token 轴之前，使每个头独立做一次 $N\times N$ 的注意力：
+\[
+S=\frac{QK^{\top}}{\sqrt{64}},\qquad A=\mathrm{softmax}(S),\qquad O=(AV)W_o^{\top}+b_o .
+\]
+其中 $K^{\top}$ 只交换最后两个轴；合并头时按相反顺序 \texttt{transpose} 再 \texttt{reshape} 回 $[B,N,768]$，最后乘输出投影。注意力系数直接调用课程提供的稳定实现（先减行最大值再取指数），图像塔不启用 causal 掩码，但该开关保留给最终项目的文本塔复用。
 
-\textbf{3. 精度与性能。}缩放因子用 \texttt{np.float32(head\_dim**-0.5)} 而非 Python 浮点，避免意外升到 float64；剩余 $10^{-7}\sim10^{-4}$ 的误差来自 BLAS 累加顺序，属可接受范围。唯一性能瓶颈是课程提供的 GELU（逐元素 Python 循环调用 \texttt{math.erf}，$B=10$ 时 12 个块约 $1.8\times10^{7}$ 次调用），这是“使用提供激活”的直接代价；若允许可用 \texttt{scipy.special.erf} 向量化，但 tanh 近似会改变数值、无法满足 $2\times10^{-5}$ 容差。
+\textbf{残差块与 MLP。}每个块先做 $\mathrm{LN}_1$ 与注意力并相加得到 $r$；$\mathrm{LN}_2$ 之后把宽度拓到 3072，过精确 erf 版 GELU，压回 768 再做第二次相加：
+\[
+r=x+\mathrm{Attn}\!\left(\mathrm{LN}_1(x)\right),\qquad
+y=r+\mathrm{MLP}\!\left(\mathrm{LN}_2(r)\right).
+\]
 
-\textbf{4. 局限与改进。}本实现只覆盖视觉塔，不含文本塔、tokenizer 与图文相似度；权重固定且不含训练逻辑，改 config 不会变成另一个模型；实现假定输入已完成预处理，直接送原图会与参考不一致。改进方向：向量化 GELU、把 12 个块改为批量矩阵乘、在更大 batch 上测吞吐；若要在最终项目中复用，应按作业要求把 \texttt{image\_encoder.py} 与 \texttt{helpers.py} 一并复制到最终项目目录。
+\textbf{输出头。}取 \texttt{tokens[:,0,:]} 做 post-Norm，乘以已是 $[\mathrm{in},\mathrm{out}]$ 的 \texttt{visual.proj}，最后调用课程的单位化函数，得到 $[B,512]$。
 
-\section*{五、本人贡献与协助说明}
+\section{Results}
 
-\textbf{本人完成：}按作业要求推导并实现 TODO-01 至 TODO-06，未修改课程提供的 \texttt{helpers.py}、\texttt{preprocess\_image.py}、\texttt{runtime.py} 与 \texttt{check.py}；逐阶段运行 \texttt{check.py} 完成数值验收，并整理全部实验数据。
+\textbf{复现环境与运行。}Windows 11、Python 3.12.14、NumPy 2.3.5、Pillow 12.3.0，纯 CPU，不需要 GPU 与联网。在 \url{project1-numpy-student} 目录下执行：
 
-\textbf{协助使用：}在实现与报告撰写中使用 AI 编程助手（DeepSeek Harness）辅助生成代码草稿、排查 4 维转置错误、整理数据与文字表述；所有结论均以 \texttt{check.py} 的实际输出为准，代码已逐行审阅。
+\begin{verbatim}
+python -m pip install -r requirements.txt
+python check.py --stage all
+python run.py --output output_tokens.npz
+\end{verbatim}
 
-\textbf{代码仓库：}\url{https://github.com/Lyzz-11/szu-python-project1-vit}，\texttt{README.md} 说明代码结构、依赖与运行步骤，保留真实提交记录；权重与输出文件通过 \texttt{.gitignore} 排除。
+\textbf{分阶段数值校验。}\texttt{check.py} 依次比对六个阶段的输出，全部通过，实测误差见表~\ref{tab:stage}。判定条件是形状、dtype、有限性与容差同时满足，容差按阶段区分：输出端 $2\times10^{-5}$，内部 token $2\times10^{-4}$。
+
+\begin{table}[H]
+\centering
+\caption{各阶段输出与参考实现的最大、平均绝对误差（rtol 均为 $2\times10^{-4}$）}
+\label{tab:stage}
+\small
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{|l|l|c|c|c|c|}
+\hline
+阶段 & 输出形状 & 最大绝对误差 & 平均绝对误差 & 容差 & 结果 \\
+\hline
+preprocess   & $(10,3,224,224)$ & $0$ & $0$ & atol $2\times10^{-6}$ & 通过 \\
+patches      & $(2,49,3072)$    & $0$ & $0$ & atol $2\times10^{-4}$ & 通过 \\
+tokens       & $(2,50,768)$     & $4.387\times10^{-5}$ & $1.335\times10^{-6}$ & atol $2\times10^{-4}$ & 通过 \\
+block0       & $(2,50,768)$     & $7.147\times10^{-6}$ & $3.348\times10^{-7}$ & atol $2\times10^{-4}$ & 通过 \\
+last\_tokens & $(2,50,768)$     & $4.196\times10^{-5}$ & $2.633\times10^{-6}$ & atol $2\times10^{-4}$ & 通过 \\
+output       & $(10,512)$       & $5.662\times10^{-7}$ & $8.688\times10^{-8}$ & atol $2\times10^{-5}$ & 通过 \\
+batch        & $(3,512)$        & $4.061\times10^{-7}$ & $7.848\times10^{-8}$ & atol $2\times10^{-5}$ & 通过 \\
+\hline
+\end{tabular}
+\end{table}
+
+\textbf{关键输出。}\texttt{run.py} 在 10 张图上写出 $[10,512]$ 的 float32 结果，图像 ID 顺序与 \url{assets/images.json} 一致；每行的 $\ell_2$ 范数落在 $[0.99999988,1.0]$，满足单位长度。用 $[1,0,1]$ 的乱序重复批重算，与逐张推理的最大偏差为 $4.1\times10^{-7}$，说明实现既不依赖批内位置，也没有把整批当作全局统计量。10 张图两两余弦相似度最低 0.4624、平均 0.5721、最高 0.6739；\texttt{image\_01} 的前五个分量为 $-0.0399,\ 0.0850,\ 0.0799,\ 0.0214,\ 0.0210$，最大单元素绝对值约 $0.196$。整轮 \texttt{--stage all} 约 12 秒，其中课程提供的逐元素 GELU 占绝大部分时间。
+
+\textbf{运行开销与误差趋势。}权重加载与编码器初始化约 $1.7$ 秒（$326$ MB 的 npz 解压为主）；单张前向 $0.39$ 秒，十张 $3.9$ 秒，基本随批大小线性增长，说明瓶颈在逐元素 GELU 而非矩阵乘。误差随层数的变化并不单调：\texttt{block0} 为 $7.1\times10^{-6}$，到 \texttt{last\_tokens} 累积到 $4.2\times10^{-5}$，而 \texttt{output} 反而回落到 $5.7\times10^{-7}$，原因是输出端的 post-Norm 与单位化把幅值归一到 1 附近，相对误差被同步压缩。
+
+\section{Discussion}
+
+\textbf{形状变化与一处顺序错误。}切块最初写成一次 \texttt{reshape(B,49,3072)}，形状正确但元素乱序：NumPy 按行优先展平，每一段 3072 会跨越通道与整行像素。必须先把空间轴拆成两段 $[B,3,7,32,7,32]$，再 \texttt{transpose} 成（批、图块行、图块列、通道、块内行、块内列），最后才合并。前两步只改变轴的解读方式，第三步才真正重排内存，所以顺序由 \texttt{transpose} 决定而非 \texttt{reshape}——这也是 \texttt{patches} 阶段误差恰好为 $0$ 的原因。
+
+\textbf{一处真正的 bug：4 维张量上的转置。}注意力最初写成 \texttt{scores = q @ k.T}。对二维矩阵 \texttt{.T} 就是转置，但对 $[B,H,N,64]$ 的 $K$，\texttt{.T} 会把四个轴全部反转，得到 $[64,N,H,B]$，把 batch 与 head 一并打乱，\texttt{check.py --stage block0} 直接报核心维度不匹配（$12$ 与 $64$）。改成只交换最后两个轴的 \texttt{k.transpose(0,1,3,2)} 后，\texttt{block0} 误差降到 $7.1\times10^{-6}$。这次排查还暴露了一个更隐蔽的问题：先跑的 \texttt{--stage tokens} 只验证 \texttt{embed}，根本不经过注意力，带 bug 的版本在该阶段依然通过，必须跑到 \texttt{block0} 才能确认注意力正确。因此“阶段通过”只说明该阶段覆盖的那部分正确，定位错误要先确认检查的覆盖范围。
+
+\textbf{结果分析。}预处理与切块的误差为 $0$，说明张量搬运没有引入任何数值改动；中间层误差在 $10^{-5}$ 量级，来自 BLAS 的累加顺序与参考实现不同，属于浮点实现的正常差异；输出端因为做了 post-Norm 与单位化，幅值归一后相对误差被压到 $10^{-7}$，所以最严的容差反而余量最大。所有阶段都保留了一个数量级以上的余量，说明实现没有隐藏的偏差累积。
+
+\textbf{局限与可改进之处。}本实现只覆盖视觉塔，不含文本塔、tokenizer 与图文相似度；权重固定，不含训练或微调逻辑，改 \texttt{config.json} 不会变成另一个模型；实现假定输入已完成预处理，直接送原图会与参考不一致。性能瓶颈是课程提供的逐元素 GELU（$B=10$ 时 12 个块约 $1.8\times10^{7}$ 次 erf 调用），若允许可用向量化实现替代，但 tanh 近似会改变数值、无法满足当前容差；12 个块之间严格串行，进一步提速只能靠批量矩阵乘或降低精度。接入最终项目时，应把 \texttt{image\_encoder.py} 与 \texttt{helpers.py} 一并复制到对应目录。
+
+\textbf{本人贡献与使用的帮助。}本人完成六个 TODO 的实现、逐阶段验收与全部数据整理，未修改课程提供的 \texttt{helpers.py}、\texttt{preprocess\_image.py}、\texttt{runtime.py} 与 \texttt{check.py}；过程中使用 DeepSeek Harness 辅助排查 4 维转置问题并整理表格与文字。文中数字均取自本机 \texttt{check.py} 的实际输出，代码已逐行复核。
+
+\newpage
+
+% ============================================================
+% 批阅与成绩评定页
+% ============================================================
+\begin{tikzpicture}[remember picture, overlay]
+  \draw[thick]
+    ($(current page.north west)+(2cm,-3cm)$)
+    rectangle
+    ($(current page.south east)+(-2cm,3.5cm)$);
+\end{tikzpicture}
+
+\vspace{1cm}
+
+\noindent \textbf{指导教师批阅意见：}
+\vspace{6cm}
+\hfill
+
+\vspace{1cm}
+
+\noindent \textbf{成绩评定：}
+\vspace{2cm}
+\hfill
+
+\vspace{1cm}
+
+\noindent
+\hfill
+\textbf{指导教师签字：}\quad\quad\quad\quad\quad\\[0.5cm]
+
+\hfill
+\textbf{年}\quad\quad
+\textbf{月}\quad\quad
+\textbf{日}\quad
+
+\vspace{1cm}
+
+\noindent \textbf{备注：}
+
+\begin{tikzpicture}[remember picture, overlay]
+  \node[
+    anchor=north west,
+    inner sep=0pt,
+    text width=\dimexpr\paperwidth-4cm\relax
+  ] at ($(current page.south west)+(2cm,3.1cm)$) {
+    \begin{minipage}{\dimexpr\paperwidth-4cm\relax}
+      \small
+      \noindent
+      \textbf{注：}\;1、报告内的项目或内容设置，可根据实际情况加以调整和补充。\\[0.2cm]
+      \phantom{\textbf{注：}\;}2、教师批改学生实验报告时间应在学生提交实验报告时间后 10 日内。
+    \end{minipage}
+  };
+\end{tikzpicture}
 
 \end{document}
