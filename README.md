@@ -1,4 +1,4 @@
-# 小项目一：用 NumPy 复现 OpenCLIP ViT-B/32 图像编码器
+﻿# 小项目一：用 NumPy 复现 OpenCLIP ViT-B/32 图像编码器
 
 Python 程序设计课程「小项目一」的实现与实验报告。任务要求在不使用 PyTorch / OpenCLIP、不做任何参数学习的前提下，仅用 NumPy 补全 `image_encoder.py`，完整复现 OpenCLIP ViT-B/32 视觉编码器（image tower）的一次前向计算：输入预处理后的 `[B,3,224,224]` 图像，输出每张图一个 512 维单位向量，并与课程提供的独立 FP32 参考实现数值一致。
 
@@ -26,7 +26,7 @@ Python 程序设计课程「小项目一」的实现与实验报告。任务要�
 ├── README.md                              本文件
 ├── README_提交说明.md                      作业提交说明（运行步骤、验收结果、实现要点）
 ├── 实验报告_小项目一_李云舟2025681110.pdf     实验报告（正文 3 页）
-├── main.tex                               课程下发的 LaTeX 报告模板
+├── main.tex                               实验报告的 LaTeX 源码（XeLaTeX 编译）
 ├── figs/vit_overview.png                  报告插图
 └── project1-numpy-student/                课程工程
     ├── image_encoder.py                   ★ 本次实现：TODO-01 ~ TODO-06
