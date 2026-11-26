@@ -1,4 +1,4 @@
-_dsh_write_test.txt
+﻿_dsh_write_test.txt
 project1-numpy-student/weights/*.npz
 project1-numpy-student/assets/reference_outputs.npz
 project1-numpy-student/output_tokens.npz
@@ -6,3 +6,5 @@ project1-numpy-student/**/__pycache__/
 __pycache__/
 *.zip
 *.log
+project1-numpy-student/lecture-demos/
+project1-numpy-student/practice/
